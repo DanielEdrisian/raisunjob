@@ -19,6 +19,8 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:async/async.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'dart:typed_data';
 
 class CustomMapWidget extends StatefulWidget {
   const CustomMapWidget({
@@ -72,7 +74,7 @@ class _CustomMapWidgetState extends State<CustomMapWidget> {
 
   void updateMapCenter(LatLng center) {
     setState(() {
-      mapCenter = center;
+      mapCenter = GoogleMaps.LatLng(center.latitude, center.longitude);
     });
   }
 
@@ -90,45 +92,68 @@ class _CustomMapWidgetState extends State<CustomMapWidget> {
     }
   }
 
+  Future<GoogleMaps.Marker> createMarkerFrom(
+    Map<String, dynamic> candidate,
+  ) async {
+    final Uint8List markerIcon =
+        await getBytesFromCanvas(candidate['image'], Size(60.0, 60.0));
+    GoogleMaps.LatLng position =
+        GoogleMaps.LatLng(candidate['latitude'], candidate['longitude']);
+    return GoogleMaps.Marker(
+      markerId: GoogleMaps.MarkerId(candidate['id']),
+      position: position,
+      onTap: () {
+        // Implement your logic for marker tap here
+      },
+      infoWindow: GoogleMaps.InfoWindow(
+        title: candidate['id'],
+        snippet: candidate['gender'],
+        onTap: () {
+          // Implement your logic for info window tap here
+        },
+      ),
+      icon: GoogleMaps.BitmapDescriptor.fromBytes(markerIcon),
+    );
+  }
+
+  Future<Uint8List> getBytesFromCanvas(String path, Size size) async {
+    final response = await http.get(Uri.parse(path));
+    final bytes = response.bodyBytes;
+
+    final codec = await ui.instantiateImageCodec(
+      bytes,
+      targetWidth: size.width.toInt(),
+      targetHeight: size.height.toInt(),
+    );
+    final ui.FrameInfo frameInfo = await codec.getNextFrame();
+    final data =
+        await frameInfo.image.toByteData(format: ui.ImageByteFormat.png);
+    return data?.buffer.asUint8List() ?? Uint8List(0);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return GoogleMaps.GoogleMap(
-      key: Key(getMapApiKey()),
-      initialCameraPosition: GoogleMaps.CameraPosition(
-        target: mapCenter,
-        zoom: 10,
-      ),
-      markers: Set<GoogleMaps.Marker>.of(candidateList.map((candidate) {
-        GoogleMaps.LatLng position =
-            GoogleMaps.LatLng(candidate['latitude'], candidate['longitude']);
-        GoogleMaps.BitmapDescriptor markerIcon = candidate['gender'] == 'Male'
-            ? GoogleMaps.BitmapDescriptor.defaultMarkerWithHue(
-                GoogleMaps.BitmapDescriptor.hueBlue)
-            : GoogleMaps.BitmapDescriptor.defaultMarkerWithHue(300);
-
-        return GoogleMaps.Marker(
-          markerId: GoogleMaps.MarkerId(candidate['id']),
-          position: position,
-          onTap: () {
-            // Implement your logic for marker tap here
-          },
-          infoWindow: GoogleMaps.InfoWindow(
-            title: candidate['id'],
-            snippet: candidate['gender'],
-            onTap: () {
-              // Implement your logic for info window tap here
+    return FutureBuilder(
+        future: Future.wait(candidateList
+            .map((candidate) => createMarkerFrom(candidate))
+            .toList()),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return CircularProgressIndicator();
+          }
+          return GoogleMaps.GoogleMap(
+            key: Key(getMapApiKey()),
+            initialCameraPosition: GoogleMaps.CameraPosition(
+              target: mapCenter,
+              zoom: 10,
+            ),
+            markers: Set<GoogleMaps.Marker>.of(snapshot.data ?? []),
+            onCameraMove: (GoogleMaps.CameraPosition position) {
+              updateMapCenter(
+                  LatLng(position.target.latitude, position.target.longitude));
+              updateCandidateList();
             },
-          ),
-          // Custom marker icon with image
-          icon: GoogleMaps.BitmapDescriptor.fromBytes(
-            (CachedNetworkImageProvider(candidate['image'])).getBytes(),
-          ),
-        );
-      })),
-      onCameraMove: (GoogleMaps.CameraPosition position) {
-        updateMapCenter(position.target);
-        updateCandidateList();
-      },
-    );
+          );
+        });
   }
 }
