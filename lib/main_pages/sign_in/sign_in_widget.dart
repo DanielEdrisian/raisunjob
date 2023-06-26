@@ -324,7 +324,7 @@ class _SignInWidgetState extends State<SignInWidget> {
                                         }
 
                                         context.goNamedAuth(
-                                            'homePage', context.mounted);
+                                            'testpagedaniel', context.mounted);
                                       },
                                       child: Container(
                                         height: 50.0,

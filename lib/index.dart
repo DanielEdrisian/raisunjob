@@ -35,3 +35,4 @@ export '/recruiter/ad_details/profile_employer_organization/profile_employer_org
 export '/map_test/map_test_widget.dart' show MapTestWidget;
 export '/map_test_copy/map_test_copy_widget.dart' show MapTestCopyWidget;
 export '/test/test_widget.dart' show TestWidget;
+export '/testpagedaniel/testpagedaniel_widget.dart' show TestpagedanielWidget;
